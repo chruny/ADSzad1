@@ -1,6 +1,14 @@
 from collections import OrderedDict
 import numpy as np
-import pandas as pd
+
+
+class Node:
+    left = None
+    right = None
+    value = None
+
+    def __init__(self, key):
+        self.value = key
 
 
 def load_file():
@@ -10,7 +18,6 @@ def load_file():
         for line in lines:
             line = [x.strip() for x in line.split(' ')]
             lines2.append(line)
-        print(len(lines2))
     return lines2
 
 
@@ -22,7 +29,7 @@ def lexikographic_sort(lines):
     return dictionary_2
 
 
-def get_probability_array_2(dictionary, p_total):
+def get_prob_arrays(dictionary, p_total):
     p_prob = []
     q_prob = []
     arr_keys = []
@@ -31,7 +38,7 @@ def get_probability_array_2(dictionary, p_total):
     sumator = 0
     last_key = list(dictionary.keys())[-1]
     for key, value in dictionary.items():
-        value = float(value)
+        value = int(value)
         if value > 50000:
             arr_keys.append((key, value))
             arr_dumm.append((arr_tmp, sumator))
@@ -45,8 +52,7 @@ def get_probability_array_2(dictionary, p_total):
 
     p_prob = get_probability(arr_keys, p_total)
     q_prob = get_probability(arr_dumm, p_total)
-    print(len(p_prob), len(q_prob))
-    return p_prob, q_prob
+    return p_prob, q_prob, arr_keys, arr_dumm
 
 
 def get_probability(arr_prob, p_total):
@@ -63,47 +69,78 @@ def get_total_probability(dictionary):
     return sumator
 
 
-def get_p_probability(frequency, p_total):
-    return frequency / p_total
-
-
-def get_q_probability(array, p_total):
-    return sum(array) / p_total
-
-
-def get_matrix(dictionary, p_array, q_array):
+def get_optimal_matrix(p_array, q_array):
     n = len(p_array)
 
-    p = pd.Series(p_array, index=range(1, n + 1))
-    q = pd.Series(q_array, index=range(1, n + 2))
+    e = np.zeros((n, n), dtype=np.float)
+    w = np.zeros((n, n), dtype=np.float)
+    root = np.zeros((n, n), dtype=np.float)
 
-    e = pd.DataFrame(np.diag(q_array), index=range(1, n + 2))
-    w = pd.DataFrame(np.diag(q_array), index=range(1, n + 2))
+    for i in range(0, n):
+        e[i][i] = q_array[i]
+        w[i][i] = q_array[i]
 
-    root = pd.DataFrame(np.zeros((n, n)), index=range(1, n + 1), columns=range(1, n + 1))
+    for l in range(1, n):
+        for i in range(0, n - l):
+            j = i + l
+            e[i][j] = np.inf
+            w[i][j] = w[i][j - 1] + p_array[j - 1] + q_array[j]
+            for r in range(i, j):
+                t = e[i][r] + e[r + 1][j] + w[i][j]
+                if t < e[i][j]:
+                    e[i][j] = t
+                    root[i][j] = r
+    print('Optimal Cost of Binary Search Tree is: ', e[1][len(e) - 1])
+    return e, w, root
 
-    for l in range(1, n + 1):
-        for i in range(1, n - l + 2):
-            j = i + l - 1
-            e.set_value(i, j, np.inf)
-            w.set_value(i, j, w.get_value(i, j - 1 + p[j] + q[j]))
-            for r in range(i, j + 1):
-                t = e.get_value(i, r - 1) + e.get_value(r + 1, j) + w.get_value(i, j)
-                if t < e.get_value(i, j):
-                    e.set_value(i, j, t)
-                    root.set_value(i, j, r)
-    print(e)
-    print(w)
-    print(root)
+
+def number_of_compares(root, key, num_of_compar):
+    if isinstance(root.value, list) or root.value == key:
+        return num_of_compar + 1
+
+    if root.value < key:
+        return number_of_compares(root.left, key, num_of_compar + 1)
+    if root.value > key:
+        return number_of_compares(root.right, key, num_of_compar + 1)
+
+
+def create_tree(r, r_value, root, arr_k, arr_d):
+    r_value = int(r_value)
+    for i in range(0, len(r) - 1):
+        if r[i][i + 1] == r_value and len(r) > 2:
+            root = Node(arr_k[r_value][0])
+            arr_cut = r[0:i + 1, 0:i + 1]
+            arr_cut_rest = r[i:len(r), i:len(r)]
+            if len(arr_cut) <= 1:
+                root.left = Node(arr_d[r_value][0])
+            else:
+                root.left = create_tree(arr_cut, r[0][i], root, arr_k, arr_d)
+            if len(arr_cut_rest) <= 1:
+                root.right = Node(arr_d[r_value][0])
+            else:
+                root.right = create_tree(arr_cut_rest, r[i + 1][len(r) - 1], root, arr_k, arr_d)
+        elif len(r) <= 2:
+            root = Node(arr_k[r_value][0])
+            root.left = Node(arr_d[r_value - 1][0])
+            root.right = Node(arr_d[r_value][0])
+    return root
 
 
 def main():
     lines = load_file()
     dictionary = lexikographic_sort(lines)
     p_total = get_total_probability(dictionary)
-    # d, q_prob, k, p_prob = get_probability_array(dictionary, p_total)
-    p_prob, q_prob = get_probability_array_2(dictionary, p_total)
-    get_matrix(dictionary, p_prob, q_prob)
+    p_prob, q_prob, arr_keys, arr_dum = get_prob_arrays(dictionary, p_total)
+    e, w, r = get_optimal_matrix(p_prob, q_prob)
+    r_value = r[0][len(r) - 1]
+    root = 1
+    root = create_tree(r, r_value, root, arr_keys, arr_dum)
+    finding = input("Write a word that you want find: ")
+    if isinstance(finding, str):
+        print('Number of compares: ', number_of_compares(root, str(finding), 0))
+    else:
+        print('"', finding, '" is not word. Failed')
+    print('END')
 
 
 if __name__ == '__main__':
